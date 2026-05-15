@@ -93,7 +93,7 @@ def clear_redis_cache():
     Clears Redis cache so next API request gets fresh features.
     """
     import redis
-    r = redis.Redis(host="localhost", port=6379, decode_responses=True)
+    r = redis.Redis(host="feature_store_redis", port=6379, decode_responses=True)
     for user_id in [1, 2, 3]:
         r.delete(f"features:{user_id}")
     print("Redis cache cleared successfully!")
