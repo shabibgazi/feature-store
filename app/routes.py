@@ -1,9 +1,10 @@
 import redis
+import json
 from fastapi import APIRouter, HTTPException
 from app.database import get_db_connection
 from app.models import UserFeatures, HealthCheck
 from psycopg2.extras import RealDictCursor
-import json
+from app.kafka_producer import send_transaction_event
 
 router = APIRouter()
 redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
@@ -66,3 +67,9 @@ def health_check():
         "postgres": postgres_ok,
         "redis": redis_ok
     }
+
+@router.post("/transaction")
+def create_transaction(user_id: int, amount: float, country: str):
+    # Send event to Kafka
+    send_transaction_event(user_id, amount, country)
+    return {"message": f"Transaction event sent for user {user_id}"}
