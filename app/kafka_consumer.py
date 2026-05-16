@@ -15,60 +15,62 @@ def get_db_connection():
 def process_transaction(event):
     """
     When a new transaction comes in:
-    1. Save it to PostgreSQL
-    2. Recalculate that user's features instantly
-    3. Clear their Redis cache so next request gets fresh data
+    1. Save it to credit_transactions
+    2. Compute features for that transaction
+    3. Update user_features
+    4. Clear Redis cache
     """
     user_id = event["user_id"]
     amount = event["amount"]
-    country = event["country"]
 
-    # Step 1: Save raw transaction to PostgreSQL
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # Step 1: Insert into credit_transactions
     cursor.execute("""
-        INSERT INTO raw_transactions (user_id, amount, country)
-        VALUES (%s, %s, %s)
-    """, (user_id, amount, country))
+        INSERT INTO credit_transactions 
+            (time, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10,
+             v11, v12, v13, v14, v15, v16, v17, v18, v19, v20,
+             v21, v22, v23, v24, v25, v26, v27, v28, amount, class)
+        VALUES 
+            (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, %s, 0)
+    """, (amount,))
 
-    # Step 2: Recalculate features for this specific user
+    # Step 2: Update user_features
     cursor.execute("""
-        UPDATE user_features uf
-        SET
-            transaction_count = t.tx_count,
-            avg_transaction_amount = t.avg_amount,
-            last_transaction_country = %s,
+        INSERT INTO user_features
+            (user_id, transaction_count, avg_transaction_amount,
+             last_transaction_country, risk_score)
+        VALUES (%s, 1, %s, 'UNKNOWN',
+            CASE
+                WHEN %s > 500 THEN 0.7
+                WHEN %s > 200 THEN 0.4
+                ELSE 0.1
+            END)
+        ON CONFLICT (user_id) DO UPDATE SET
+            transaction_count = user_features.transaction_count + 1,
+            avg_transaction_amount = (
+                user_features.avg_transaction_amount + %s) / 2,
             risk_score = CASE
-                WHEN t.avg_amount > 500 THEN 0.8
-                WHEN t.avg_amount > 200 THEN 0.5
-                ELSE 0.2
+                WHEN %s > 500 THEN 0.7
+                WHEN %s > 200 THEN 0.4
+                ELSE 0.1
             END
-        FROM (
-            SELECT
-                COUNT(*) as tx_count,
-                AVG(amount) as avg_amount
-            FROM raw_transactions
-            WHERE user_id = %s
-        ) t
-        WHERE uf.user_id = %s
-    """, (country, user_id, user_id))
+    """, (user_id, amount, amount, amount, amount, amount, amount))
 
     conn.commit()
     cursor.close()
     conn.close()
 
-    # Step 3: Clear Redis cache for this user
+    # Step 3: Clear Redis cache
     r = redis.Redis(host="localhost", port=6379, decode_responses=True)
     r.delete(f"features:{user_id}")
 
-    print(f"Processed transaction for user {user_id}: ${amount} from {country}")
+    print(f"Processed transaction for user {user_id}: ${amount}")
 
 def start_consumer():
-    """
-    Starts listening to the transactions topic.
-    Runs forever, processing each event as it comes in.
-    """
     consumer = KafkaConsumer(
         "transactions",
         bootstrap_servers="localhost:9092",
@@ -76,9 +78,7 @@ def start_consumer():
         auto_offset_reset="earliest",
         group_id="feature_store_group"
     )
-
     print("Kafka consumer started. Listening for transactions...")
-
     for message in consumer:
         event = message.value
         print(f"Received event: {event}")
