@@ -29,6 +29,9 @@ Return features
 ↓
 Random Forest Model
 (94% F1 on fraud cases)
+↓
+Prometheus + Grafana
+(real-time monitoring)
 
 ## Tech Stack
 
@@ -40,7 +43,9 @@ Random Forest Model
 | **Apache Kafka** | Real-time transaction event streaming |
 | **Apache Airflow** | Nightly batch feature pipeline |
 | **Scikit-learn** | Random Forest fraud detection model |
-| **Docker** | Containerized infrastructure |
+| **Prometheus** | Metrics collection |
+| **Grafana** | Real-time monitoring dashboard |
+| **Docker** | Fully containerized infrastructure |
 | **Python** | Core application logic |
 
 ## Performance
@@ -48,8 +53,10 @@ Random Forest Model
 - **Cache HIT latency:** 1.83ms (Redis)
 - **Cache MISS latency:** 24.85ms (PostgreSQL)
 - **Redis is 13.6x faster** than direct PostgreSQL lookups
-- **Fraud detection accuracy:** 100% overall, 94% F1 on fraud cases
+- **Fraud detection F1 score:** 94% on fraud cases
+- **Overall accuracy:** 100%
 - **Dataset:** 284,807 real credit card transactions (492 fraud cases)
+- **Feature store size:** 1,000 users with real-time features
 - **Cache TTL:** 5 minutes (auto-expiry for feature freshness)
 
 ## API Endpoints
@@ -60,6 +67,7 @@ Random Forest Model
 | POST | `/transaction` | Send a new transaction event |
 | POST | `/predict` | Predict fraud probability for a transaction |
 | GET | `/health` | Health check for all services |
+| GET | `/metrics` | Prometheus metrics endpoint |
 
 ## How It Works
 
@@ -68,7 +76,7 @@ When a transaction occurs, a Kafka event is fired instantly. The consumer proces
 
 ### Batch Updates (Airflow)
 Every night at midnight, an Airflow DAG runs a full pipeline:
-1. Ingests raw transactions
+1. Reads from real credit card transactions
 2. Recalculates all user features
 3. Clears Redis cache
 
@@ -81,11 +89,18 @@ A Random Forest model trained on 284,807 real transactions returns:
 - `fraud_probability` — confidence score (0.0 to 1.0)
 - `risk_level` — HIGH, MEDIUM, or LOW
 
+### Monitoring (Prometheus + Grafana)
+Real-time dashboard tracking:
+- API requests total
+- Response times
+- Successful requests
+
 ## Running Locally
 
 ### Prerequisites
 - Docker
 - Python 3.12+
+- Kaggle account (for dataset)
 
 ### Steps
 
@@ -118,7 +133,7 @@ Place `creditcard.csv` in the root folder.
 python scripts/load_data.py
 \```
 
-6. Train the model:
+6. Train the fraud detection model:
 \```bash
 python scripts/train_model.py
 \```
@@ -137,3 +152,9 @@ python -m app.kafka_consumer
 \```
 http://127.0.0.1:8000/docs
 \```
+
+10. Visit the Grafana dashboard:
+\```
+http://localhost:3000
+\```
+Username: admin | Password: admin
